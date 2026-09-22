@@ -343,9 +343,11 @@ impl DeviceManager {
         handler: DeviceActorHandler,
         device_id: Uuid,
         properties: Ping360Properties,
-        _vehicle_data: std::sync::Arc<tokio::sync::RwLock<Option<crate::vehicle::VehicleData>>>,
+        vehicle_data: std::sync::Arc<tokio::sync::RwLock<Option<crate::vehicle::VehicleData>>>,
     ) -> tokio::task::JoinHandle<()> {
         tokio::spawn(async move {
+            let mut previous_heading = None;
+
             loop {
                 let config = properties.continuous_mode_settings.clone();
                 let initial_settings = match config.read() {
@@ -407,9 +409,32 @@ impl DeviceManager {
                         }
                     }
 
-                    angle = Self::calculate_next_angle(
+                    let next_angle = Self::calculate_next_angle(
                         angle,
                         step_size,
+                        is_full_circle,
+                        &mut direction,
+                        initial_settings.start_angle,
+                        initial_settings.stop_angle,
+                    );
+
+                    let current_heading = vehicle_data.read().await.as_ref().and_then(|vehicle| {
+                        vehicle
+                            .yaw
+                            .is_finite()
+                            .then(|| Self::yaw_to_gradians(vehicle.yaw))
+                    });
+                    let heading_delta = match (previous_heading, current_heading) {
+                        (Some(previous), Some(current)) => {
+                            Self::wrapped_heading_delta(previous, current)
+                        }
+                        _ => 0,
+                    };
+                    previous_heading = current_heading;
+
+                    angle = Self::apply_heading_delta(
+                        next_angle,
+                        heading_delta,
                         is_full_circle,
                         &mut direction,
                         initial_settings.start_angle,
@@ -455,6 +480,46 @@ impl DeviceManager {
             } else {
                 ((start_angle as i32 + current_linear - step).rem_euclid(400)) as u16
             }
+        }
+    }
+
+    fn yaw_to_gradians(yaw: f32) -> i32 {
+        (yaw * 200.0 / std::f32::consts::PI).round() as i32
+    }
+
+    fn wrapped_heading_delta(previous: i32, current: i32) -> i32 {
+        (current - previous + 200).rem_euclid(400) - 200
+    }
+
+    fn apply_heading_delta(
+        angle: u16,
+        heading_delta: i32,
+        is_full_circle: bool,
+        direction: &mut i16,
+        start_angle: u16,
+        stop_angle: u16,
+    ) -> u16 {
+        let adjusted = (i32::from(angle) - heading_delta).rem_euclid(400) as u16;
+        if is_full_circle {
+            return adjusted;
+        }
+
+        let sector_len = (i32::from(stop_angle) - i32::from(start_angle)).rem_euclid(400);
+        let adjusted_linear = (i32::from(adjusted) - i32::from(start_angle)).rem_euclid(400);
+        if adjusted_linear <= sector_len {
+            return adjusted;
+        }
+
+        let distance_to_start = adjusted_linear.min(400 - adjusted_linear);
+        let distance_to_stop = (adjusted_linear - sector_len)
+            .abs()
+            .min(400 - (adjusted_linear - sector_len).abs());
+        if distance_to_start <= distance_to_stop {
+            *direction = 1;
+            start_angle
+        } else {
+            *direction = -1;
+            stop_angle
         }
     }
 }
