@@ -123,14 +123,20 @@ pub async fn zenoh_client_bridge(latest_pose: Arc<RwLock<Option<VehicleData>>>) 
                 }
             }
 
-            if let (Some(att), Some(pos)) = (&latest_attitude, &latest_position) {
+            if let Some(att) = &latest_attitude {
                 let pose = VehicleData {
                     roll: att.roll,
                     pitch: att.pitch,
                     yaw: att.yaw,
-                    alt: pos.alt as f64 / 1000.0,
-                    lat: pos.lat as f64 / 1e7,
-                    lon: pos.lon as f64 / 1e7,
+                    alt: latest_position
+                        .as_ref()
+                        .map_or(0.0, |pos| pos.alt as f64 / 1000.0),
+                    lat: latest_position
+                        .as_ref()
+                        .map_or(0.0, |pos| pos.lat as f64 / 1e7),
+                    lon: latest_position
+                        .as_ref()
+                        .map_or(0.0, |pos| pos.lon as f64 / 1e7),
                 };
                 let mut pose_guard = latest_pose.write().await;
                 *pose_guard = Some(pose);
