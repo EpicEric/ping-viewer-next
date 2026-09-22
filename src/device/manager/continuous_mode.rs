@@ -582,4 +582,83 @@ mod tests {
         let set: std::collections::HashSet<_> = visited.into_iter().collect();
         assert_eq!(set.len(), 400);
     }
+
+    #[test]
+    fn yaw_is_converted_to_gradians() {
+        assert_eq!(
+            DeviceManager::yaw_to_gradians(std::f32::consts::FRAC_PI_2),
+            100
+        );
+        assert_eq!(DeviceManager::yaw_to_gradians(-std::f32::consts::PI), -200);
+    }
+
+    #[test]
+    fn heading_delta_wraps_at_half_turn() {
+        assert_eq!(DeviceManager::wrapped_heading_delta(199, -199), 2);
+        assert_eq!(DeviceManager::wrapped_heading_delta(-199, 199), -2);
+    }
+
+    #[test]
+    fn heading_delta_preserves_world_frame_step() {
+        let mut direction = 1;
+        let next_mechanical = DeviceManager::apply_heading_delta(
+            DeviceManager::calculate_next_angle(100, 10, true, &mut direction, 0, 399),
+            10,
+            true,
+            &mut direction,
+            0,
+            399,
+        );
+
+        assert_eq!(next_mechanical, 100);
+        assert_eq!(
+            (i32::from(next_mechanical) + 30).rem_euclid(400),
+            (100 + 20 + 10) % 400
+        );
+    }
+
+    #[test]
+    fn heading_delta_wraps_full_circle_angle() {
+        let mut direction = 1;
+        assert_eq!(
+            DeviceManager::apply_heading_delta(5, 10, true, &mut direction, 0, 399),
+            395
+        );
+        assert_eq!(
+            DeviceManager::apply_heading_delta(395, -10, true, &mut direction, 0, 399),
+            5
+        );
+    }
+
+    #[test]
+    fn heading_delta_clamps_to_non_wrap_sector() {
+        let mut direction = -1;
+        assert_eq!(
+            DeviceManager::apply_heading_delta(105, 10, false, &mut direction, 100, 300),
+            100
+        );
+        assert_eq!(direction, 1);
+
+        assert_eq!(
+            DeviceManager::apply_heading_delta(295, -10, false, &mut direction, 100, 300),
+            300
+        );
+        assert_eq!(direction, -1);
+    }
+
+    #[test]
+    fn heading_delta_clamps_to_wrap_sector() {
+        let mut direction = -1;
+        assert_eq!(
+            DeviceManager::apply_heading_delta(305, 10, false, &mut direction, 300, 100),
+            300
+        );
+        assert_eq!(direction, 1);
+
+        assert_eq!(
+            DeviceManager::apply_heading_delta(95, -10, false, &mut direction, 300, 100),
+            100
+        );
+        assert_eq!(direction, -1);
+    }
 }
