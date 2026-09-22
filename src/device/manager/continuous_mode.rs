@@ -79,6 +79,7 @@ impl DeviceManager {
                                     handler,
                                     device_id,
                                     properties.clone(),
+                                    self.vehicle_data.clone(),
                                 ))
                             }
                         },
@@ -92,6 +93,7 @@ impl DeviceManager {
                         handler,
                         device_id,
                         properties.clone(),
+                        self.vehicle_data.clone(),
                     ))
                 }
             }
@@ -335,6 +337,7 @@ impl DeviceManager {
         handler: DeviceActorHandler,
         device_id: Uuid,
         properties: Ping360Properties,
+        _vehicle_data: std::sync::Arc<tokio::sync::RwLock<Option<crate::vehicle::VehicleData>>>,
     ) -> tokio::task::JoinHandle<()> {
         tokio::spawn(async move {
             loop {

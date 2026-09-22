@@ -16,7 +16,7 @@ async fn main() {
     // Start the Zenoh-client with shared data
     tokio::spawn(zenoh_client_bridge(vehicle_data.clone()));
 
-    let (mut manager, handler) = device::manager::DeviceManager::new(10);
+    let (mut manager, handler) = device::manager::DeviceManager::new(10, vehicle_data.clone());
 
     //Todo: Load previous devices
     if cli::manager::is_enable_auto_create() {

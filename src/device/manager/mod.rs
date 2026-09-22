@@ -37,6 +37,8 @@ use bluerobotics_ping::{
     message::ProtocolMessage,
 };
 use discovery_service::DiscoveryComponent;
+
+use crate::vehicle::VehicleData;
 #[derive(Debug)]
 pub struct Device {
     pub id: Uuid,
@@ -189,6 +191,7 @@ pub struct DeviceManager {
     pub device: HashMap<Uuid, Device>,
     discovery_service: DiscoveryComponent,
     pub manager_handler: ManagerActorHandler,
+    vehicle_data: Arc<tokio::sync::RwLock<Option<VehicleData>>>,
 }
 
 #[derive(Debug)]
@@ -366,7 +369,10 @@ impl DeviceManager {
         }
     }
 
-    pub fn new(size: usize) -> (Self, ManagerActorHandler) {
+    pub fn new(
+        size: usize,
+        vehicle_data: Arc<tokio::sync::RwLock<Option<VehicleData>>>,
+    ) -> (Self, ManagerActorHandler) {
         let (sender, receiver) = mpsc::channel(size);
 
         let actor_handler = ManagerActorHandler { sender };
@@ -375,6 +381,7 @@ impl DeviceManager {
             device: HashMap::new(),
             discovery_service: DiscoveryComponent::new(),
             manager_handler: actor_handler.clone(),
+            vehicle_data,
         };
 
         trace!("DeviceManager and handler successfully created: Success");

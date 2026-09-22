@@ -1,8 +1,11 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+use std::sync::Arc;
+
 use ping_viewer_next::{cli, device, logger, server};
 use tauri::Manager;
+use tokio::sync::RwLock;
 
 #[tokio::main]
 async fn main() {
@@ -10,7 +13,7 @@ async fn main() {
 
     logger::manager::init();
 
-    let (manager, handler) = device::manager::DeviceManager::new(10);
+    let (manager, handler) = device::manager::DeviceManager::new(10, Arc::new(RwLock::new(None)));
 
     let (recordings_manager, recordings_manager_handler) =
         device::recording::RecordingManager::new(10, "recordings", handler.clone());
