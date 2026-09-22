@@ -60,8 +60,14 @@ impl DeviceManager {
                     return None;
                 };
 
-                // Check if firmware supports auto-transmit mode
-                if properties.supports_auto_transmit() {
+                if self.vehicle_data.read().await.is_some() {
+                    Some(Self::start_ping360_software_mode(
+                        handler,
+                        device_id,
+                        properties.clone(),
+                        self.vehicle_data.clone(),
+                    ))
+                } else if properties.supports_auto_transmit() {
                     match self.get_device_source(device_id) {
                         Ok(source) => match source {
                             super::SourceSelection::UdpStream(_)
