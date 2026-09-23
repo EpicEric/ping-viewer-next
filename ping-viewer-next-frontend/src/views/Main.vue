@@ -924,7 +924,7 @@ const connectYawWebSocket = (url) => {
       try {
         const data = JSON.parse(event.data);
         if (data.message && data.message.type === 'ATTITUDE') {
-          yawAngle.value = 180 - (data.message.yaw * 180) / Math.PI;
+          yawAngle.value = (data.message.yaw * 180) / Math.PI;
         }
       } catch (error) {
         console.error('Error parsing yaw message:', error);

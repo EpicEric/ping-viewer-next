@@ -90,7 +90,7 @@ export default defineComponent({
 
     const setHeadingFromYaw = (yawRadians) => {
       if (typeof yawRadians !== 'number' || !Number.isFinite(yawRadians)) return;
-      yawAngle.value = -(yawRadians * 180) / Math.PI;
+      yawAngle.value = (yawRadians * 180) / Math.PI;
     };
 
     const widgetType = computed(() => route.params.type?.toLowerCase());
