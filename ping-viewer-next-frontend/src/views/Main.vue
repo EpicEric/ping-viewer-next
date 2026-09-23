@@ -911,16 +911,19 @@ const connectYawWebSocket = (url) => {
     return;
   }
 
+  cleanupYawConnection();
+
   try {
-    yawWebSocket = new WebSocket(url);
+    const socket = new WebSocket(url);
+    yawWebSocket = socket;
     yawConnectionStatus.value = 'Connecting';
 
-    yawWebSocket.onopen = () => {
+    socket.onopen = () => {
       yawConnectionStatus.value = 'Connected';
       localStorage.setItem('yawWebsocketUrl', url);
     };
 
-    yawWebSocket.onmessage = (event) => {
+    socket.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
         if (data.message && data.message.type === 'ATTITUDE') {
@@ -931,12 +934,15 @@ const connectYawWebSocket = (url) => {
       }
     };
 
-    yawWebSocket.onerror = (error) => {
+    socket.onerror = (error) => {
+      if (socket !== yawWebSocket) return;
       console.error('Yaw WebSocket error:', error);
       yawConnectionStatus.value = 'Error';
     };
 
-    yawWebSocket.onclose = () => {
+    // Sockets closed by cleanupYawConnection are already detached and must not reconnect.
+    socket.onclose = () => {
+      if (socket !== yawWebSocket) return;
       yawConnectionStatus.value = 'Disconnected';
       yawWebSocket = null;
 
@@ -973,8 +979,10 @@ const cleanupYawConnection = () => {
   }
 
   if (yawWebSocket) {
-    yawWebSocket.close();
+    const socket = yawWebSocket;
     yawWebSocket = null;
+    socket.close();
+    yawConnectionStatus.value = 'Disconnected';
   }
 };
 
