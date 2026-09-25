@@ -1,11 +1,12 @@
-use std::sync::Arc;
-use tokio::sync::RwLock;
+use futures_util::future::join;
+use std::{sync::Arc, time::Duration};
+use tokio::{sync::RwLock, time::timeout};
 use tracing::info;
 
 use ping_viewer_next::{cli, device, logger, server, vehicle::zenoh_client_bridge};
 
 #[tokio::main]
-async fn main() {
+async fn main() -> std::io::Result<()> {
     // CLI should be started before logger to allow control over verbosity
     cli::manager::init();
     // Logger should start before everything else to register any log information
@@ -37,11 +38,23 @@ async fn main() {
 
     tokio::spawn(async move { manager.run().await });
 
-    server::manager::run(
-        &cli::manager::server_address(),
-        handler,
-        recordings_manager_handler,
+    let server_address = cli::manager::server_address();
+
+    let result = server::manager::run(
+        &server_address,
+        handler.clone(),
+        recordings_manager_handler.clone(),
     )
-    .await
-    .unwrap();
+    .await;
+
+    let _ = timeout(
+        Duration::from_secs(8),
+        join(
+            handler.send(device::manager::Request::Shutdown),
+            recordings_manager_handler.send(device::recording::RecordingManagerCommand::Shutdown),
+        ),
+    )
+    .await;
+
+    result
 }
