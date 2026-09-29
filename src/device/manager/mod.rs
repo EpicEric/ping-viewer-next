@@ -180,6 +180,7 @@ enum SourceType {
 pub struct SourceUdpStruct {
     pub ip: Ipv4Addr,
     pub port: u16,
+    pub mac_address: Option<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, Hash, Apiv2Schema, PartialEq)]
