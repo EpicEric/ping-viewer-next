@@ -6,6 +6,8 @@ pub mod device_discovery;
 pub mod device_handle;
 /// Specially for DeviceManager, allow discovery service to run on background
 pub mod discovery_service;
+/// Specially for DeviceManager, handles device reconnections with a stable identifier (slot).
+pub mod slots;
 
 use paperclip::actix::Apiv2Schema;
 use serde::{Deserialize, Serialize};
@@ -155,7 +157,7 @@ impl Drop for Device {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Apiv2Schema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Apiv2Schema)]
 pub enum DeviceSelection {
     Common,
     Ping1D,
