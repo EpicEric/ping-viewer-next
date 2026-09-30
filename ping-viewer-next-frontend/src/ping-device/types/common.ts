@@ -7,13 +7,15 @@ export type DeviceType = 'ping360' | 'ping1d' | 'unknown';
 
 export interface BaseRequest {
   type: string;
-  uuid: string;
+  device_type: string;
+  slot: number;
 }
 
 export interface BaseResponse {
   type: string;
   status: 'success' | 'error';
-  uuid: string;
+  device_type: string;
+  slot: number;
 }
 
 export interface DeviceAgentState {
@@ -54,7 +56,8 @@ export interface DeviceMessage {
       AutoDeviceData: Ping1DData;
     };
   };
-  device_id: string;
+  device_type: string;
+  slot: number;
 }
 
 export interface PingDeviceAPI {
@@ -135,9 +138,9 @@ export interface PingDeviceAPI {
 }
 
 export interface RecordingStatus {
-  device_id: string;
+  device_type: string;
+  slot: number;
   is_active: boolean;
   file_path?: string;
   start_time?: string;
-  device_type?: string;
 }
