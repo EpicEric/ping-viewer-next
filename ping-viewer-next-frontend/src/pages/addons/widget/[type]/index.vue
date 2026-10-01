@@ -1,7 +1,15 @@
 <template>
   <div class="h-screen w-screen bg-transparent" ref="containerRef">
 
-    <div v-if="isLoading" class="flex items-center justify-center text-white">
+    <div v-if="outdatedWidget" class="h-full w-full flex items-center justify-center">
+      <div class="text-center p-4 max-w-md text-white">
+        <v-icon color="warning" size="48" class="mb-4">mdi-alert</v-icon>
+        <h2 class="text-xl mb-2">Recreate this widget</h2>
+        <p>This widget is outdated. Remove it and add it again.</p>
+      </div>
+    </div>
+
+    <div v-else-if="isLoading" class="flex items-center justify-center text-white">
       <div class="text-center">
         <v-progress-circular indeterminate color="primary" size="64" class="mb-4" />
         <div>Connecting to device...</div>
@@ -65,7 +73,8 @@ export default defineComponent({
     const slot = ref(0);
     const waiting = ref(false);
     const error = ref('');
-    const isLoading = ref(true);
+    const outdatedWidget = ref(new URLSearchParams(window.location.search).has('uuid'));
+    const isLoading = ref(!outdatedWidget.value);
     const deviceData = ref(null);
     const dimensions = ref({ width: 0, height: 0 });
     const yawAngle = ref(0);
@@ -799,6 +808,10 @@ export default defineComponent({
       await nextTick();
       updateDimensions();
 
+      if (outdatedWidget.value) {
+        return;
+      }
+
       const params = new URLSearchParams(window.location.search);
       serverUrl.value = params.get('server') || `${location.protocol}//${location.host}`;
       const rawSlot = params.get('slot');
@@ -868,6 +881,7 @@ export default defineComponent({
       containerRef,
       widgetRef,
       error,
+      outdatedWidget,
       isLoading,
       deviceData,
       widgetComponent,
