@@ -48,6 +48,7 @@ let gl: WebGLRenderingContext | null = null;
 let renderFrame = 0;
 let shaderProgram: WebGLProgram | null = null;
 let texture: WebGLTexture | null = null;
+let resizeObserver: ResizeObserver | null = null;
 
 let textureData = new Uint8Array(props.numLines * props.lineLength * 4);
 let currentLineLength = props.lineLength;
@@ -75,8 +76,8 @@ const fsSource = `
   void main(void) {
     vec2 polar = vTextureCoord;
     float angle = atan(polar.y - 0.5, polar.x - 0.5) + 3.14159/2.0;
-    // The plot stays in the sonar frame. Sonar360Mask rotates the canvas for heading,
-    // so uYawAngle is normally 0 and compass changes do not redraw this texture.
+    // Full-circle scans rotate the canvas, so this stays 0. Partial scans pass
+    // heading here and shift the sweep instead of rotating the fitted view.
     float angleDegrees = mod(degrees(angle) - uYawAngle, 360.0);
     float radius = length(polar - 0.5) * 2.0;
 
@@ -360,11 +361,20 @@ onMounted(() => {
     initWebGL();
     resizeCanvas();
     window.addEventListener('resize', resizeCanvas);
+    // Partial scans change the fitted square as heading moves the wedge.
+    if (canvas.value && typeof ResizeObserver !== 'undefined') {
+      resizeObserver = new ResizeObserver(() => resizeCanvas());
+      resizeObserver.observe(canvas.value);
+    }
   });
 });
 
 onUnmounted(() => {
   window.removeEventListener('resize', resizeCanvas);
+  if (resizeObserver) {
+    resizeObserver.disconnect();
+    resizeObserver = null;
+  }
   if (renderFrame) cancelAnimationFrame(renderFrame);
 });
 

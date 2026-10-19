@@ -17,8 +17,9 @@
 			</defs>
 
 			<!--
-				Everything drawn here is fixed to the sonar head, so it takes the same heading
-				offset the shader applies to the data. The depth labels below stay upright.
+				Full-circle scans rotate this group with heading. Partial scans leave the
+				rotation at 0 and shift the sweep angles instead, so a fitted sector stays
+				on screen. Depth labels stay upright either way.
 			-->
 			<g :transform="`rotate(${yawAngle} 50 50)`">
 				<path v-if="!isFullCircle" :d="sectorPath" fill="none" :stroke="radiusLineColor"
@@ -30,10 +31,10 @@
 						vector-effect="non-scaling-stroke" />
 				</g>
 
-				<line v-for="deg in angleLines" :key="deg"
+				<line v-for="line in angleLines" :key="line.id"
 					x1="50" y1="50"
-					:x2="50 + maxRadius * Math.cos((deg - 90) * Math.PI / 180)"
-					:y2="50 + maxRadius * Math.sin((deg - 90) * Math.PI / 180)"
+					:x2="50 + maxRadius * Math.cos((line.angle - 90) * Math.PI / 180)"
+					:y2="50 + maxRadius * Math.sin((line.angle - 90) * Math.PI / 180)"
 					:stroke="radiusLineColor" :stroke-width="radiusLineWidth"
 					vector-effect="non-scaling-stroke" />
 
@@ -103,25 +104,35 @@ const props = defineProps<{
   endAngle: number;
   markerBackgroundColor: string;
   yawAngle: number;
+  // Degrees added to sweep geometry when the view itself is not rotated.
+  angleOffset?: number;
 }>();
 
 const isFullCircle = computed(() => {
   return props.startAngle === 0 && props.endAngle === 360;
 });
 
+// Same convention as Ping360.vue's display angles: 0 is up, clockwise positive.
+const shiftAngle = (angle: number) => {
+  const shifted = angle + (props.angleOffset ?? 0);
+  return ((shifted % 360) + 360) % 360;
+};
+
+const angleInSector = (deg: number, start: number, end: number) => {
+  if (start <= end) return deg >= start && deg <= end;
+  return deg >= start || deg <= end;
+};
+
 const angleLines = computed(() => {
   const all = [0, 45, 90, 135, 180, 225, 270, 315];
-  if (isFullCircle.value) return all;
-  return all.filter((deg) => {
-    if (props.startAngle <= props.endAngle) {
-      return deg >= props.startAngle && deg <= props.endAngle;
-    }
-    return deg >= props.startAngle || deg <= props.endAngle;
-  });
+  const visible = isFullCircle.value
+    ? all
+    : all.filter((deg) => angleInSector(deg, props.startAngle, props.endAngle));
+  return visible.map((deg) => ({ id: deg, angle: shiftAngle(deg) }));
 });
 
 const adjustedAngleRad = computed(() => {
-  const normalizedAngle = ((props.angle + 1) / 400) * 360;
+  const normalizedAngle = ((props.angle + 1) / 400) * 360 + (props.angleOffset ?? 0);
   return ((normalizedAngle + 90) * Math.PI) / 180;
 });
 
@@ -140,8 +151,8 @@ const radiusLines = computed(() => {
 const sectorPath = computed(() => {
   if (isFullCircle.value) return '';
 
-  const startRad = (props.startAngle - 90) * (Math.PI / 180);
-  const endRad = (props.endAngle - 90) * (Math.PI / 180);
+  const startRad = (shiftAngle(props.startAngle) - 90) * (Math.PI / 180);
+  const endRad = (shiftAngle(props.endAngle) - 90) * (Math.PI / 180);
   const startX = 50 + 50 * Math.cos(startRad);
   const startY = 50 + 50 * Math.sin(startRad);
   const endX = 50 + 50 * Math.cos(endRad);
@@ -157,8 +168,10 @@ const getRadiusLinePath = (radius: number) => {
     } A ${radius} ${radius} 0 1 1 50 ${50 - radius}`;
   }
 
-  const startRad = (props.startAngle - 90) * (Math.PI / 180);
-  const endRad = (props.endAngle - 90) * (Math.PI / 180);
+  const start = shiftAngle(props.startAngle);
+  const end = shiftAngle(props.endAngle);
+  const startRad = (start - 90) * (Math.PI / 180);
+  const endRad = (end - 90) * (Math.PI / 180);
   const startX = 50 + radius * Math.cos(startRad);
   const startY = 50 + radius * Math.sin(startRad);
   const endX = 50 + radius * Math.cos(endRad);
@@ -166,11 +179,11 @@ const getRadiusLinePath = (radius: number) => {
 
   let largeArcFlag: number;
   let sweepFlag: number;
-  if (props.startAngle <= props.endAngle) {
-    largeArcFlag = props.endAngle - props.startAngle <= 180 ? 0 : 1;
+  if (start <= end) {
+    largeArcFlag = end - start <= 180 ? 0 : 1;
     sweepFlag = 1;
   } else {
-    largeArcFlag = 360 - props.startAngle + props.endAngle <= 180 ? 0 : 1;
+    largeArcFlag = 360 - start + end <= 180 ? 0 : 1;
     sweepFlag = 1;
   }
 
@@ -178,7 +191,7 @@ const getRadiusLinePath = (radius: number) => {
 };
 
 const getMarkerPositionPercent = (radius: number) => {
-  const angle = 45;
+  const angle = shiftAngle(45);
   const rad = (angle - 90) * (Math.PI / 180);
   return {
     x: 50 + radius * Math.cos(rad),

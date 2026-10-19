@@ -5,10 +5,10 @@
 				:numMarkers="numMarkers" :showRadiusLines="showRadiusLines" :showMarkers="showMarkers"
 				:radiusLineColor="radiusLineColor" :markerColor="markerColor"
 				:markerBackgroundColor="markerBackgroundColor" :radiusLineWidth="radiusLineWidth"
-				:startAngle="startAngle" :endAngle="endAngle" :yawAngle="isFrozen ? frozenYaw : yaw_angle">
+				:startAngle="startAngle" :endAngle="endAngle" :yawAngle="rotationYaw" :angleOffset="sweepOffset">
 			<Sonar360Shader :measurement="measurement" :measurements="measurements" :is-frozen="isFrozen" :numLines="400"
 				:color-palette="colorPalette" :get-color-from-palette="getColorFromPalette" :startAngle="startAngle"
-				:endAngle="endAngle" :yaw_angle="0" :max-radius="shaderMaxRadius" :debug=false />
+				:endAngle="endAngle" :yaw_angle="sweepOffset" :max-radius="shaderMaxRadius" :debug=false />
 			</Sonar360Mask>
 		</div>
 
@@ -133,9 +133,28 @@ const sectorWidth = computed(() => {
   return diff >= 0 ? diff : diff + 360;
 });
 
+const normalizeDegrees = (angle) => ((angle % 360) + 360) % 360;
+
+const activeYaw = computed(() => (props.isFrozen ? frozenYaw.value : props.yaw_angle));
+
+const isFullCircle = computed(() => sectorWidth.value >= 360 || sectorWidth.value === 0);
+
+// A full scan stays centered under canvas rotation. A partial scan is fitted to
+// its wedge, so that same rotation swings the wedge off screen. Shift the sweep
+// by the heading instead, and let the fit follow the new angles.
+const rotationYaw = computed(() => (isFullCircle.value ? activeYaw.value : 0));
+const sweepOffset = computed(() => (isFullCircle.value ? 0 : activeYaw.value));
+
+const displayStartAngle = computed(() =>
+  isFullCircle.value ? props.startAngle : normalizeDegrees(props.startAngle + sweepOffset.value)
+);
+const displayEndAngle = computed(() =>
+  isFullCircle.value ? props.endAngle : normalizeDegrees(props.endAngle + sweepOffset.value)
+);
+
 const isHalfCircleView = computed(() => {
   if (sectorWidth.value <= 180) return false;
-  return props.startAngle >= 270 && props.endAngle <= 90;
+  return displayStartAngle.value >= 270 && displayEndAngle.value <= 90;
 });
 
 function isAngleInSector(angle, start, end) {
@@ -146,7 +165,7 @@ function isAngleInSector(angle, start, end) {
 }
 
 const sectorBoundingBox = computed(() => {
-  if (sectorWidth.value >= 360 || sectorWidth.value === 0) {
+  if (isFullCircle.value) {
     return { minX: 0, maxX: 1, minY: 0, maxY: 1 };
   }
 
@@ -154,16 +173,16 @@ const sectorBoundingBox = computed(() => {
   const points = [{ x: 0.5, y: 0.5 }];
 
   points.push({
-    x: 0.5 + 0.5 * Math.cos(toRad(props.startAngle)),
-    y: 0.5 + 0.5 * Math.sin(toRad(props.startAngle)),
+    x: 0.5 + 0.5 * Math.cos(toRad(displayStartAngle.value)),
+    y: 0.5 + 0.5 * Math.sin(toRad(displayStartAngle.value)),
   });
   points.push({
-    x: 0.5 + 0.5 * Math.cos(toRad(props.endAngle)),
-    y: 0.5 + 0.5 * Math.sin(toRad(props.endAngle)),
+    x: 0.5 + 0.5 * Math.cos(toRad(displayEndAngle.value)),
+    y: 0.5 + 0.5 * Math.sin(toRad(displayEndAngle.value)),
   });
 
   for (const cardinal of [0, 90, 180, 270]) {
-    if (isAngleInSector(cardinal, props.startAngle, props.endAngle)) {
+    if (isAngleInSector(cardinal, displayStartAngle.value, displayEndAngle.value)) {
       points.push({
         x: 0.5 + 0.5 * Math.cos(toRad(cardinal)),
         y: 0.5 + 0.5 * Math.sin(toRad(cardinal)),
@@ -252,7 +271,7 @@ onUnmounted(() => {
   }
 });
 
-watch([() => props.startAngle, () => props.endAngle], () => {
+watch([() => props.startAngle, () => props.endAngle, activeYaw], () => {
   updateSize();
 });
 
