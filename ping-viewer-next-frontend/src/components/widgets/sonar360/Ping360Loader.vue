@@ -18,8 +18,9 @@
 
           <Ping360Settings ref="settingsRef" :server-url="serverUrl" :device-type="device.device_type"
             :device-slot="device.slot"
-            :initial-angles="{ startAngle, endAngle }" :isOpen="isSettingsOpen" @update:angles="handleAngleUpdate"
-            @rangeChange="handleRangeChange" @close="closeSettings" />
+            :initial-angles="{ startAngle, endAngle }" :isOpen="isSettingsOpen"
+            @update:angles="handleAngleUpdate" @update:headDown="handleHeadDownUpdate"
+            @update:range="handleRangeChange" @close="closeSettings" />
         </v-dialog>
       </FloatingControls>
 
@@ -27,8 +28,8 @@
         :lineColor="lineColor" :lineWidth="lineWidth" :maxDistance="currentRange" :numMarkers="numMarkers"
         :showRadiusLines="showRadiusLines" :showMarkers="showMarkers" :radiusLineColor="radiusLineColor"
         :markerColor="markerColor" :textBackgroundColor="markerBackgroundColor" :radiusLineWidth="radiusLineWidth"
-        :debug="debug" :startAngle="startAngle" :endAngle="endAngle" :yaw_angle="yawAngle" v-bind="$attrs"
-        class="h-full w-full" />
+        :debug="debug" :startAngle="startAngle" :endAngle="endAngle" :yaw_angle="yawAngle" :headDown="headDown"
+        v-bind="$attrs" class="h-full w-full" />
     </div>
   </div>
 </template>
@@ -116,6 +117,7 @@ const liveAngle = ref(0);
 const currentRange = ref(props.maxDistance);
 const startAngle = ref(0);
 const endAngle = ref(360);
+const headDown = ref(false);
 const connectionStatus = ref('Disconnected');
 const socket = ref(null);
 const isFrozen = ref(false);
@@ -201,6 +203,7 @@ const connectWebSocket = () => {
         parsedData.DeviceConfig?.Ping360Config;
 
       if (config) {
+        headDown.value = config.head_down === true;
         const SAMPLE_PERIOD_TICK_DURATION = 25e-9;
         currentRange.value = Math.round(
           (config.sample_period * SAMPLE_PERIOD_TICK_DURATION * config.number_of_samples * 1500) / 2
@@ -280,6 +283,10 @@ const handleAngleUpdate = ({ startAngle: newStart, endAngle: newEnd }) => {
 
 const handleRangeChange = (newRange) => {
   currentRange.value = newRange;
+};
+
+const handleHeadDownUpdate = (newHeadDown) => {
+  headDown.value = newHeadDown;
 };
 
 const openSettings = async () => {
