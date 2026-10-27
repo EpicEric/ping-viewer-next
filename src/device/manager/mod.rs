@@ -69,6 +69,10 @@ fn default_ping360_speed_of_sound() -> u16 {
     1500
 }
 
+fn default_ping360_delay() -> u8 {
+    10
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Apiv2Schema)]
 pub struct Ping360Config {
     pub mode: u8,
@@ -1674,7 +1678,7 @@ impl DeviceManager {
                         start_angle: 0,
                         stop_angle: 399,
                         num_steps: 1,
-                        delay: 0,
+                        delay: default_ping360_delay(),
                         speed_of_sound: default_ping360_speed_of_sound(),
                         head_down: false,
                     });
