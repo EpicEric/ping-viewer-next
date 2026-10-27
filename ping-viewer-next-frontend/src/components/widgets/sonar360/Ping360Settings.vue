@@ -85,7 +85,7 @@
               <template v-slot:activator="{ props }">
                 <div v-bind="props" style="display: inline-block">
                   <v-checkbox
-                    v-model="sharedHeadDown"
+                    v-model="headDown"
                     label="Head-down"
                     hide-details
                     density="compact"
@@ -277,7 +277,10 @@ const showMountOptions = ref(false);
 const autoMode = ref(true);
 const range = ref(10);
 const centerAngle = ref(180);
-const sharedHeadDown = useHeadDown();
+const headDown = useHeadDown(() => ({
+  device_type: props.deviceType,
+  slot: props.deviceSlot,
+}));
 const width = ref(180);
 const angleRange = ref([0, 360]);
 

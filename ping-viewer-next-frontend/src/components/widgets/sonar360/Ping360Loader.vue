@@ -23,7 +23,7 @@
         </v-dialog>
       </FloatingControls>
 
-      <Ping360 :isFrozen="isFrozen" :measurement="liveMeasurement" :angle="liveAngle" :colorPalette="colorPalette"
+      <Ping360 :device="device" :isFrozen="isFrozen" :measurement="liveMeasurement" :angle="liveAngle" :colorPalette="colorPalette"
         :lineColor="lineColor" :lineWidth="lineWidth" :maxDistance="currentRange" :numMarkers="numMarkers"
         :showRadiusLines="showRadiusLines" :showMarkers="showMarkers" :radiusLineColor="radiusLineColor"
         :markerColor="markerColor" :textBackgroundColor="markerBackgroundColor" :radiusLineWidth="radiusLineWidth"

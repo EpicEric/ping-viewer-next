@@ -12,6 +12,12 @@ export interface ViewerSettings {
   revision: number;
   head_down: boolean;
   display: DisplayProfile;
+  ping360_head_down?: Ping360HeadDown[];
+}
+
+export interface Ping360HeadDown {
+  slot: number;
+  head_down: boolean;
 }
 
 // Latest settings accepted from the service.

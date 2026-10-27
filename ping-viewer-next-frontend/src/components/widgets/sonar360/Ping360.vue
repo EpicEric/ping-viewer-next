@@ -5,7 +5,8 @@
 				:numMarkers="numMarkers" :showRadiusLines="showRadiusLines" :showMarkers="showMarkers"
 				:radiusLineColor="radiusLineColor" :markerColor="markerColor"
 				:markerBackgroundColor="markerBackgroundColor" :radiusLineWidth="radiusLineWidth"
-				:startAngle="startAngle" :endAngle="endAngle" :yawAngle="isFrozen ? frozenYaw : yaw_angle">
+				:startAngle="startAngle" :endAngle="endAngle" :yawAngle="isFrozen ? frozenYaw : yaw_angle"
+				:headDown="headDown">
 			<Sonar360Shader :measurement="measurement" :measurements="measurements" :is-frozen="isFrozen" :numLines="400"
 				:color-palette="colorPalette" :get-color-from-palette="getColorFromPalette" :startAngle="startAngle"
 				:endAngle="endAngle" :yaw_angle="0" :max-radius="shaderMaxRadius" :debug=false />
@@ -36,9 +37,11 @@ import { useHeadDown } from '@/composables/useHeadDown';
 // When headDown is on we mirror the whole sonar container horizontally.
 // `Sonar360Mask` applies a second `scaleX(-1)` to its depth markers so their
 // text stays readable. Both flips must stay in sync.
-const headDown = useHeadDown();
-
 const props = defineProps({
+  device: {
+    type: Object,
+    required: true,
+  },
   isFrozen: {
     type: Boolean,
     required: true,
@@ -117,6 +120,8 @@ const props = defineProps({
     default: 'rgba(0, 0, 0, 0.5)',
   },
 });
+
+const headDown = useHeadDown(() => props.device);
 
 const frozenAngle = ref(0);
 const frozenYaw = ref(0);
