@@ -83,6 +83,24 @@ pub struct Ping360Config {
     pub delay: u8,
     #[serde(default = "default_ping360_speed_of_sound")]
     pub speed_of_sound: u16,
+    #[serde(default)]
+    pub head_down: bool,
+}
+
+impl Ping360Config {
+    fn same_scan(&self, other: &Self) -> bool {
+        self.mode == other.mode
+            && self.gain_setting == other.gain_setting
+            && self.transmit_duration == other.transmit_duration
+            && self.sample_period == other.sample_period
+            && self.transmit_frequency == other.transmit_frequency
+            && self.number_of_samples == other.number_of_samples
+            && self.start_angle == other.start_angle
+            && self.stop_angle == other.stop_angle
+            && self.num_steps == other.num_steps
+            && self.delay == other.delay
+            && self.speed_of_sound == other.speed_of_sound
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -1658,6 +1676,7 @@ impl DeviceManager {
                         num_steps: 1,
                         delay: 0,
                         speed_of_sound: default_ping360_speed_of_sound(),
+                        head_down: false,
                     });
 
                 let ping_360_properties = Ping360Properties {
@@ -1950,4 +1969,37 @@ pub async fn turnoff_device_continuous_mode(source: &SourceSelection) -> Result<
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod ping360_config_tests {
+    use super::Ping360Config;
+
+    fn sample(head_down: bool) -> Ping360Config {
+        Ping360Config {
+            mode: 1,
+            gain_setting: 0,
+            transmit_duration: 32,
+            sample_period: 80,
+            transmit_frequency: 740,
+            number_of_samples: 1200,
+            start_angle: 0,
+            stop_angle: 399,
+            num_steps: 1,
+            delay: 0,
+            speed_of_sound: 1500,
+            head_down,
+        }
+    }
+
+    #[test]
+    fn head_down_alone_does_not_change_the_scan() {
+        let upright = sample(false);
+        let flipped = sample(true);
+        assert!(upright.same_scan(&flipped));
+
+        let mut louder = flipped;
+        louder.gain_setting = 1;
+        assert!(!upright.same_scan(&louder));
+    }
 }
