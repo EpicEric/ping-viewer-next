@@ -68,7 +68,6 @@ impl Default for DisplayProfile {
 pub struct ViewerSettings {
     /// Starts at 0 and increases with every update
     pub revision: u64,
-    pub head_down: bool,
     pub display: DisplayProfile,
 }
 
@@ -77,8 +76,6 @@ pub struct ViewerSettingsUpdate {
     /// Reject the update unless this is still the current revision
     #[serde(default)]
     pub expected_revision: Option<u64>,
-    #[serde(default)]
-    pub head_down: Option<bool>,
     #[serde(default)]
     pub display: Option<DisplayProfile>,
 }
@@ -108,8 +105,6 @@ pub(crate) struct PingViewerNextV1Settings {
     #[serde(default)]
     pub(crate) revision: u64,
     #[serde(default)]
-    pub(crate) head_down: bool,
-    #[serde(default)]
     pub(crate) display: DisplayProfile,
 }
 
@@ -120,7 +115,6 @@ impl Default for PingViewerNextV1Settings {
             fake_id_counter: default_fake_id_counter(),
             ping360: Vec::new(),
             revision: 0,
-            head_down: false,
             display: DisplayProfile::default(),
         }
     }
@@ -162,7 +156,6 @@ pub(crate) fn remember_ping360_config(
 fn viewer_snapshot(settings: &PingViewerNextV1Settings) -> ViewerSettings {
     ViewerSettings {
         revision: settings.revision,
-        head_down: settings.head_down,
         display: settings.display.clone(),
     }
 }
@@ -180,9 +173,6 @@ pub(crate) fn update_viewer_settings(
 
 fn apply_viewer_update(settings: &mut PingViewerNextV1Settings, update: &ViewerSettingsUpdate) {
     settings.revision += 1;
-    if let Some(head_down) = update.head_down {
-        settings.head_down = head_down;
-    }
     if let Some(display) = update.display.clone() {
         settings.display = display;
     }
@@ -488,7 +478,6 @@ mod tests {
             .expect("settings mutex should not be poisoned");
         assert_eq!(loaded.fake_devices.get(&2), Some(&DeviceSelection::Ping360));
         assert_eq!(loaded.fake_id_counter, 3);
-        assert!(!loaded.head_down);
         assert!(loaded.ping360.is_empty());
         assert_eq!(loaded.display, DisplayProfile::default());
         drop(loaded);
@@ -536,22 +525,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn partial_viewer_update_leaves_the_other_field() {
-        let mut settings = PingViewerNextV1Settings::default();
-        settings.display.color_palette = "Ocean".to_string();
-        apply_viewer_update(
-            &mut settings,
-            &ViewerSettingsUpdate {
-                head_down: Some(true),
-                ..Default::default()
-            },
-        );
-        assert!(settings.head_down);
-        assert_eq!(settings.display.color_palette, "Ocean");
-        assert_eq!(settings.revision, 1);
-    }
-
-    #[tokio::test]
     async fn stale_expected_revision_is_rejected() {
         let directory = test_dir("stale-revision");
         let settings = load_settings_from(&directory, false);
@@ -559,13 +532,11 @@ mod tests {
         let rejected = settings
             .update_viewer(ViewerSettingsUpdate {
                 expected_revision: Some(1),
-                head_down: Some(true),
                 ..Default::default()
             })
             .unwrap_err();
 
         assert_eq!(rejected.revision, 0);
-        assert!(!rejected.head_down);
         assert_eq!(settings.lock().unwrap().revision, 0);
         std::fs::remove_dir_all(&directory).unwrap();
     }
@@ -588,7 +559,6 @@ mod tests {
             head_down: true,
         };
         let settings = PingViewerNextV1Settings {
-            head_down: true,
             display: DisplayProfile {
                 color_palette: "Ocean".to_string(),
                 debug_mode: true,
@@ -609,7 +579,6 @@ mod tests {
         let loaded = loaded
             .lock()
             .expect("settings mutex should not be poisoned");
-        assert!(loaded.head_down);
         assert_eq!(loaded.display.color_palette, "Ocean");
         assert!(loaded.display.debug_mode);
         assert!(loaded.display.a_scan);
