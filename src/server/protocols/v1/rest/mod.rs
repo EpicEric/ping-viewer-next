@@ -1,6 +1,7 @@
+use crate::device::manager::slots::DeviceConnection;
 use crate::device::manager::{
-    DeviceRequestStruct, DeviceSelection, DeviceSlotWrapper, ManagerActorHandler, ModifyDevice,
-    Request,
+    DeviceRequestStruct, DeviceSelection, DeviceSlotWrapper, ManagerActorHandler, ManagerError,
+    ModifyDevice, Request,
 };
 use crate::server::protocols::v1::errors::Error;
 use actix_web::{HttpRequest, Responder};
@@ -67,20 +68,52 @@ async fn get_viewer_settings() -> Result<Json<crate::settings::ViewerSettings>, 
     Ok(Json(crate::settings::viewer_settings()))
 }
 
+async fn ping360_connection(
+    manager_handler: &ManagerActorHandler,
+    slot: u8,
+) -> Result<DeviceConnection, Error> {
+    let answer = manager_handler
+        .send(Request::Info(DeviceSlotWrapper {
+            device_type: DeviceSelection::Ping360,
+            slot,
+        }))
+        .await
+        .map_err(|error| match error {
+            ManagerError::DeviceNotExist(_, _) => {
+                Error::BadRequest(format!("Ping360 slot {slot} is not connected"))
+            }
+            other => Error::Internal(other.to_string()),
+        })?;
+    let crate::device::manager::Answer::DeviceInfo(devices) = answer else {
+        return Err(Error::Internal("device info was not returned".to_string()));
+    };
+    let info = devices
+        .first()
+        .ok_or_else(|| Error::BadRequest(format!("Ping360 slot {slot} is not connected")))?;
+    Ok(DeviceConnection::from(&info.source))
+}
+
 #[api_v2_operation]
 #[put("settings")]
 async fn put_viewer_settings(
+    manager_handler: web::Data<ManagerActorHandler>,
     update: web::Json<crate::settings::ViewerSettingsUpdate>,
-) -> impl Responder {
-    match crate::settings::update_viewer_settings(update.into_inner()) {
+) -> Result<HttpResponse, Error> {
+    let update = update.into_inner();
+    let connection = if let Some(change) = &update.ping360_head_down {
+        Some(ping360_connection(&manager_handler, change.slot).await?)
+    } else {
+        None
+    };
+    match crate::settings::update_viewer_settings(update, connection) {
         Ok(settings) => {
             crate::server::protocols::v1::websocket::send_to_websockets(
                 json!({ "ViewerSettings": settings }),
                 None,
             );
-            HttpResponse::Ok().json(settings)
+            Ok(HttpResponse::Ok().json(settings))
         }
-        Err(current) => HttpResponse::Conflict().json(current),
+        Err(current) => Ok(HttpResponse::Conflict().json(current)),
     }
 }
 

@@ -65,11 +65,25 @@ impl Default for DisplayProfile {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Apiv2Schema)]
+pub struct Ping360HeadDown {
+    pub slot: u8,
+    pub head_down: bool,
+}
+
+#[derive(Debug, Clone, Deserialize, Apiv2Schema)]
+pub struct Ping360HeadDownUpdate {
+    pub slot: u8,
+    pub head_down: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Apiv2Schema)]
 pub struct ViewerSettings {
     /// Starts at 0 and increases with every update
     pub revision: u64,
+    /// Used when a Ping360 has no entry in `ping360_head_down`
     pub head_down: bool,
     pub display: DisplayProfile,
+    pub ping360_head_down: Vec<Ping360HeadDown>,
 }
 
 #[derive(Debug, Clone, Default, Deserialize, Apiv2Schema)]
@@ -81,6 +95,9 @@ pub struct ViewerSettingsUpdate {
     pub head_down: Option<bool>,
     #[serde(default)]
     pub display: Option<DisplayProfile>,
+    /// Head-down for the connected Ping360 in this slot
+    #[serde(default)]
+    pub ping360_head_down: Option<Ping360HeadDownUpdate>,
 }
 
 /// Acoustic settings for one Ping360, keyed by `DeviceConnection` and slot.
@@ -98,6 +115,15 @@ pub(crate) struct StoredPing360 {
     pub(crate) config: Ping360Config,
 }
 
+/// Head-down mount for one Ping360, keyed like `StoredPing360`.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub(crate) struct StoredPing360HeadDown {
+    pub(crate) connection: DeviceConnection,
+    #[serde(default)]
+    pub(crate) slot: u8,
+    pub(crate) head_down: bool,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct PingViewerNextV1Settings {
     #[serde(default)]
@@ -106,6 +132,8 @@ pub(crate) struct PingViewerNextV1Settings {
     pub(crate) fake_id_counter: u16,
     #[serde(default)]
     pub(crate) ping360: Vec<StoredPing360>,
+    #[serde(default)]
+    pub(crate) ping360_head_down: Vec<StoredPing360HeadDown>,
     #[serde(default)]
     pub(crate) revision: u64,
     #[serde(default)]
@@ -120,6 +148,7 @@ impl Default for PingViewerNextV1Settings {
             fake_devices: HashMap::new(),
             fake_id_counter: default_fake_id_counter(),
             ping360: Vec::new(),
+            ping360_head_down: Vec::new(),
             revision: 0,
             head_down: false,
             display: DisplayProfile::default(),
@@ -165,6 +194,14 @@ fn viewer_snapshot(settings: &PingViewerNextV1Settings) -> ViewerSettings {
         revision: settings.revision,
         head_down: settings.head_down,
         display: settings.display.clone(),
+        ping360_head_down: settings
+            .ping360_head_down
+            .iter()
+            .map(|entry| Ping360HeadDown {
+                slot: entry.slot,
+                head_down: entry.head_down,
+            })
+            .collect(),
     }
 }
 
@@ -175,17 +212,46 @@ pub(crate) fn viewer_settings() -> ViewerSettings {
 /// Fails with the current settings when `expected_revision` is stale
 pub(crate) fn update_viewer_settings(
     update: ViewerSettingsUpdate,
+    ping360_connection: Option<DeviceConnection>,
 ) -> Result<ViewerSettings, ViewerSettings> {
-    SETTINGS.update_viewer(update)
+    SETTINGS.update_viewer(update, ping360_connection)
 }
 
-fn apply_viewer_update(settings: &mut PingViewerNextV1Settings, update: &ViewerSettingsUpdate) {
+fn remember_ping360_head_down(
+    settings: &mut PingViewerNextV1Settings,
+    connection: DeviceConnection,
+    slot: u8,
+    head_down: bool,
+) {
+    if let Some(entry) = settings
+        .ping360_head_down
+        .iter_mut()
+        .find(|entry| entry.connection == connection && entry.slot == slot)
+    {
+        entry.head_down = head_down;
+    } else {
+        settings.ping360_head_down.push(StoredPing360HeadDown {
+            connection,
+            slot,
+            head_down,
+        });
+    }
+}
+
+fn apply_viewer_update(
+    settings: &mut PingViewerNextV1Settings,
+    update: &ViewerSettingsUpdate,
+    ping360_connection: Option<&DeviceConnection>,
+) {
     settings.revision += 1;
     if let Some(head_down) = update.head_down {
         settings.head_down = head_down;
     }
     if let Some(display) = update.display.clone() {
         settings.display = display;
+    }
+    if let (Some(change), Some(connection)) = (&update.ping360_head_down, ping360_connection) {
+        remember_ping360_head_down(settings, connection.clone(), change.slot, change.head_down);
     }
 }
 
@@ -252,6 +318,7 @@ impl PingViewerNextSettings {
     fn update_viewer(
         &self,
         update: ViewerSettingsUpdate,
+        ping360_connection: Option<DeviceConnection>,
     ) -> Result<ViewerSettings, ViewerSettings> {
         let mut settings = self.lock().expect("not poisoned");
         // Only dereferenced immutably until the check passes, so a rejected update is not saved
@@ -261,7 +328,7 @@ impl PingViewerNextSettings {
         {
             return Err(viewer_snapshot(&settings));
         }
-        apply_viewer_update(&mut settings, &update);
+        apply_viewer_update(&mut settings, &update, ping360_connection.as_ref());
         Ok(viewer_snapshot(&settings))
     }
 }
@@ -546,6 +613,7 @@ mod tests {
                 head_down: Some(true),
                 ..Default::default()
             },
+            None,
         );
         assert!(settings.head_down);
         assert_eq!(settings.display.color_palette, "Ocean");
@@ -558,11 +626,14 @@ mod tests {
         let settings = load_settings_from(&directory, false);
 
         let rejected = settings
-            .update_viewer(ViewerSettingsUpdate {
-                expected_revision: Some(1),
-                head_down: Some(true),
-                ..Default::default()
-            })
+            .update_viewer(
+                ViewerSettingsUpdate {
+                    expected_revision: Some(1),
+                    head_down: Some(true),
+                    ..Default::default()
+                },
+                None,
+            )
             .unwrap_err();
 
         assert_eq!(rejected.revision, 0);
