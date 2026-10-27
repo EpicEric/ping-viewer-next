@@ -10,7 +10,6 @@ export interface DisplayProfile {
 
 export interface ViewerSettings {
   revision: number;
-  head_down: boolean;
   display: DisplayProfile;
 }
 
@@ -56,13 +55,11 @@ function readLegacy(key: string) {
 // so the settings in this browser are imported
 async function migrateLegacySettings(current: ViewerSettings) {
   const display = readLegacy('display-settings');
-  const headDown = readLegacy('sonar360.headDown');
   let settings = current;
-  if (current.revision === 0 && (display || typeof headDown === 'boolean')) {
+  if (current.revision === 0 && display) {
     const profile = current.display;
     settings = await updateViewerSettings({
       expected_revision: 0,
-      head_down: typeof headDown === 'boolean' ? headDown : undefined,
       display: display
         ? {
             a_scan: display.aScan ?? profile.a_scan,
